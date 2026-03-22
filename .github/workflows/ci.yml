@@ -56,7 +56,7 @@ jobs:
               print('SECURITY: Found possible hardcoded secrets:')
               for i in issues: print(f'  {i}')
               sys.exit(1)
-          print('No hardcoded secrets found ✓')
+          print('No hardcoded secrets found [OK]')
           "
 
   security-scan:
