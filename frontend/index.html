@@ -426,6 +426,49 @@
                 </div>
             </div>
 
+            <!-- Coach Nudge Card -->
+            <div id="coach-nudge-card" class="coach-nudge-card" style="display:none">
+                <div class="nudge-header">
+                    <span class="nudge-avatar">💬</span>
+                    <span class="nudge-coach-name" id="nudge-coach-name">Coach</span>
+                    <button id="nudge-dismiss" class="nudge-dismiss" title="Dismiss">✕</button>
+                </div>
+                <p class="nudge-message" id="nudge-message"></p>
+                <div class="nudge-actions" id="nudge-actions"></div>
+            </div>
+
+            <!-- Quick Workout Logger -->
+            <div id="workout-quick-card" class="workout-quick-card">
+                <div class="workout-header">
+                    <h3 class="workout-title">🏋️ Log Workout</h3>
+                    <button id="workout-toggle" class="btn btn-ghost btn-sm">+</button>
+                </div>
+                <div id="workout-form" class="workout-form" style="display:none">
+                    <div class="workout-type-grid" id="workout-type-grid">
+                        <button class="workout-type-btn" data-type="Walking">🚶 Walk</button>
+                        <button class="workout-type-btn" data-type="Running">🏃 Run</button>
+                        <button class="workout-type-btn" data-type="Cycling">🚴 Cycle</button>
+                        <button class="workout-type-btn" data-type="Weights">🏋️ Weights</button>
+                        <button class="workout-type-btn" data-type="Swimming">🏊 Swim</button>
+                        <button class="workout-type-btn" data-type="Yoga">🧘 Yoga</button>
+                        <button class="workout-type-btn" data-type="HIIT">⚡ HIIT</button>
+                        <button class="workout-type-btn" data-type="Sports">⚽ Sports</button>
+                    </div>
+                    <div class="workout-details" id="workout-details" style="display:none">
+                        <div class="input-row" style="margin:0;gap:8px">
+                            <input type="number" id="workout-duration" class="text-input" placeholder="Min" min="1" max="300" style="flex:1;min-width:0">
+                            <select id="workout-intensity" class="text-input" style="flex:1;min-width:0">
+                                <option value="light">Light</option>
+                                <option value="moderate" selected>Moderate</option>
+                                <option value="intense">Intense</option>
+                            </select>
+                            <button id="workout-save" class="btn btn-primary btn-sm">Log</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="today-workouts" class="today-workouts"></div>
+            </div>
+
             <!-- Daily Summary Cards -->
             <div class="dashboard-content" id="dashboard-content">
                 <!-- Calories ring -->
@@ -745,6 +788,21 @@
                 <div class="settings-section">
                     <h3 class="settings-title">Daily Check-In</h3>
                     <div class="settings-card" id="settings-checkin"></div>
+                </div>
+                <div class="settings-section">
+                    <h3 class="settings-title">Coach Nudges</h3>
+                    <div class="settings-card" id="settings-nudges">
+                        <div class="input-group" style="margin-top:0">
+                            <label class="input-label">Daily Check-in Frequency</label>
+                            <select id="nudge-frequency" class="text-input">
+                                <option value="daily">Every day</option>
+                                <option value="every_other_day">Every other day</option>
+                                <option value="weekly">Weekly (Mondays)</option>
+                                <option value="off">Off</option>
+                            </select>
+                            <p class="input-hint">Your AI coach will greet you on the dashboard with a personalized check-in</p>
+                        </div>
+                    </div>
                 </div>
                 <div class="settings-section">
                     <h3 class="settings-title">Remote Access</h3>

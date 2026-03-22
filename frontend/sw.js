@@ -1,7 +1,7 @@
 // NutriTracker Service Worker
 // Caches static assets for offline UI. API calls always go to network.
 
-const CACHE_NAME = 'nutritracker-v3';
+const CACHE_NAME = 'nutritracker-v4';
 const STATIC_ASSETS = [
     '/',
     '/css/style.css',

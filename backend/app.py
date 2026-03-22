@@ -610,6 +610,9 @@ def api_analyze_trends(user_id):
     # Get actual meals with descriptions for richer analysis
     all_meals = db.get_meals_range(user_id, start_date.isoformat(), end_date.isoformat())
 
+    # Get workouts for the period
+    all_workouts = db.get_workouts_range(user_id, start_date.isoformat(), end_date.isoformat())
+
     # Build data summary for AI
     days_logged = len(daily_totals)
     avg_cal = round(sum(d['total_calories'] for d in daily_totals) / max(days_logged, 1))
@@ -659,6 +662,22 @@ def api_analyze_trends(user_id):
 
     daily_breakdown = '\n'.join(daily_breakdown_lines) or "  No meals logged"
 
+    # Build workout summary
+    workout_summary = ""
+    if all_workouts:
+        workout_days = len(set(w['workout_date'] for w in all_workouts))
+        workout_lines = []
+        for w in all_workouts:
+            line = f"  {w['workout_date']}: {w['workout_type']}"
+            if w.get('duration_min'):
+                line += f" ({w['duration_min']} min)"
+            if w.get('intensity'):
+                line += f" [{w['intensity']}]"
+            workout_lines.append(line)
+        workout_summary = f"\nWORKOUTS ({workout_days} days with exercise):\n" + "\n".join(workout_lines)
+    else:
+        workout_summary = "\nWORKOUTS: No workouts logged this period."
+
     system_prompt = food_analyzer.build_user_system_prompt(user, preferences=prefs)
     analysis_prompt = f"""Analyze the user's nutrition trends for the past {days} days and provide coaching insights.
 
@@ -669,8 +688,9 @@ Average daily: {avg_cal} cal (target: {target_cal}), {avg_protein}g protein (tar
 
 DAILY BREAKDOWN (with individual meals and foods):
 {daily_breakdown}
+{workout_summary}
 
-IMPORTANT: You can see WHAT the user actually ate each day (meal descriptions, food items, and per-meal macros).
+IMPORTANT: You can see WHAT the user actually ate each day AND their workout activity (meal descriptions, food items, and per-meal macros).
 Use this to give food-specific advice — comment on specific meals, suggest swaps, identify patterns
 (e.g., "you're grabbing fast food for lunch 3 out of 5 days" or "great job with the grilled chicken salads").
 
@@ -1000,6 +1020,213 @@ def api_delete_memory(user_id, memory_id):
 def api_clear_memories(user_id):
     db.clear_chat_memories(user_id)
     return jsonify({'ok': True})
+
+
+# ─── Workouts ──────────────────────────────────────────────────────────────
+
+@app.route('/api/users/<int:user_id>/workouts', methods=['GET'])
+def api_get_workouts(user_id):
+    """Get workouts for a date or date range."""
+    workout_date = request.args.get('date')
+    start = request.args.get('start')
+    end = request.args.get('end')
+
+    if start and end:
+        workouts = db.get_workouts_range(user_id, start, end)
+    elif workout_date:
+        workouts = db.get_workouts_for_date(user_id, workout_date)
+    else:
+        workouts = db.get_workouts_for_date(user_id, date.today().isoformat())
+
+    return jsonify(workouts)
+
+
+@app.route('/api/users/<int:user_id>/workouts', methods=['POST'])
+def api_add_workout(user_id):
+    """Log a workout."""
+    data = request.json or {}
+    workout_type = data.get('workout_type', '').strip()
+    if not workout_type:
+        return jsonify({'error': 'Workout type required'}), 400
+
+    workout_id = db.add_workout(
+        user_id=user_id,
+        workout_date=data.get('workout_date', date.today().isoformat()),
+        workout_type=workout_type,
+        duration_min=data.get('duration_min'),
+        intensity=data.get('intensity', 'moderate'),
+        notes=data.get('notes'),
+    )
+    return jsonify({'id': workout_id, 'ok': True})
+
+
+@app.route('/api/users/<int:user_id>/workouts/<int:workout_id>', methods=['DELETE'])
+def api_delete_workout(user_id, workout_id):
+    db.delete_workout(workout_id)
+    return jsonify({'ok': True})
+
+
+@app.route('/api/users/<int:user_id>/workout-stats', methods=['GET'])
+def api_workout_stats(user_id):
+    """Get workout summary stats."""
+    last = db.get_last_workout(user_id)
+    streak_30 = db.get_workout_streak(user_id, 30)
+    # Get this week's workouts
+    today = date.today()
+    week_start = today - timedelta(days=today.weekday())
+    week_workouts = db.get_workouts_range(user_id, week_start.isoformat(), today.isoformat())
+
+    return jsonify({
+        'last_workout': last,
+        'days_this_month': streak_30,
+        'workouts_this_week': len(week_workouts),
+        'week_workouts': week_workouts,
+    })
+
+
+# ─── Daily Coach Nudge ────────────────────────────────────────────────────
+
+@app.route('/api/users/<int:user_id>/daily-nudge', methods=['GET'])
+def api_daily_nudge(user_id):
+    """Get the daily coach nudge — cached per day, generated once via AI."""
+    user = db.get_user(user_id)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    prefs = db.get_user_preferences(user_id)
+    nudge_freq = prefs.get('nudge_frequency', 'daily') if prefs else 'daily'
+
+    # Check if nudges are disabled
+    if nudge_freq == 'off':
+        return jsonify({'nudge': None, 'disabled': True})
+
+    # Check frequency
+    today = date.today()
+    cached = db.get_daily_nudge(user_id, today.isoformat())
+    if cached:
+        return jsonify({'nudge': cached['message'], 'cached': True})
+
+    # Check if it's a nudge day based on frequency
+    if nudge_freq == 'every_other_day':
+        day_num = (today - date(2024, 1, 1)).days
+        if day_num % 2 != 0:
+            return jsonify({'nudge': None, 'not_today': True})
+    elif nudge_freq == 'weekly':
+        if today.weekday() != 0:  # Only Monday
+            return jsonify({'nudge': None, 'not_today': True})
+
+    # No API key = can't generate
+    if not user.get('ai_api_key'):
+        return jsonify({'nudge': None, 'no_key': True})
+
+    # Gather context for AI
+    today_iso = today.isoformat()
+    today_totals = db.get_daily_totals(user_id, today_iso)
+    today_meals = db.get_meals_for_date(user_id, today_iso)
+    last_workout = db.get_last_workout(user_id)
+    last_weighin = db.get_last_weighin(user_id)
+    workout_streak = db.get_workout_streak(user_id, 30)
+    memories = db.get_chat_memories(user_id, limit=15)
+
+    # Recent meal patterns (last 3 days)
+    recent_meals = db.get_meals_range(
+        user_id,
+        (today - timedelta(days=3)).isoformat(),
+        today_iso
+    )
+
+    # Build context
+    meals_logged_today = len(today_meals)
+    cal_today = today_totals.get('total_calories', 0)
+    target_cal = user.get('calorie_target', 2000)
+
+    workout_context = "No workouts logged yet."
+    if last_workout:
+        days_since = (today - date.fromisoformat(last_workout['workout_date'])).days
+        if days_since == 0:
+            workout_context = f"Already worked out today: {last_workout['workout_type']} ({last_workout.get('duration_min', '?')} min)"
+        elif days_since == 1:
+            workout_context = f"Last workout was yesterday: {last_workout['workout_type']}"
+        else:
+            workout_context = f"Last workout was {days_since} days ago: {last_workout['workout_type']}"
+    workout_context += f"\nWorkout days this month: {workout_streak}/30"
+
+    weighin_context = ""
+    if last_weighin:
+        days_since_w = (today - date.fromisoformat(last_weighin['log_date'])).days
+        weighin_context = f"Last weigh-in: {last_weighin['weight_kg']}kg, {days_since_w} days ago"
+
+    memory_text = ""
+    if memories:
+        memory_text = "Things I remember about this person:\n" + "\n".join(f"- {m['fact']}" for m in memories)
+
+    day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    day_of_week = day_names[today.weekday()]
+
+    coach_name = user.get('coach_name', 'Coach')
+
+    nudge_prompt = f"""You are {coach_name}, a personal nutrition and fitness coach. Generate a brief daily check-in message for your client.
+
+CLIENT: {user.get('name', 'there')}
+TODAY: {day_of_week}, {today_iso}
+GOAL: {user.get('goal_type', 'maintain')} | Target: {target_cal} kcal/day
+
+TODAY'S STATUS:
+- Meals logged so far: {meals_logged_today} ({cal_today} cal of {target_cal} target)
+- {workout_context}
+{weighin_context}
+
+{memory_text}
+
+YOUR DAILY NUDGE RULES:
+1. Keep it SHORT — 2-4 sentences max. This is a dashboard card, not a conversation.
+2. Be warm, genuine, and specific to their situation RIGHT NOW
+3. Vary your approach by day:
+   - Monday: Fresh start energy, set the week's intention
+   - Mid-week: Check consistency, encourage momentum
+   - Friday: Celebrate the week, plan for weekend temptations
+   - Weekend: Acknowledge flexibility while staying mindful
+4. If they haven't logged meals today, gently encourage it (without nagging)
+5. If they haven't worked out recently, ask what movement sounds good (don't guilt-trip)
+6. If they worked out today, celebrate it specifically
+7. Ask ONE simple question to drive engagement (yes/no or simple answer)
+8. NEVER recommend supplements, detoxes, cleanses, or any products
+9. NEVER push fad diets, elimination diets without medical reason, or "superfood" nonsense
+10. Be a real coach — practical, warm, evidence-based
+
+Examples of good nudges:
+- "Hey [name]! Wednesday already — you're halfway through the week. I see you haven't logged yet today. What's on the menu? Even a quick photo helps us stay on track."
+- "Morning! You crushed that workout yesterday. How are your muscles feeling? Remember to get some protein in early today."
+- "Happy Friday [name]! You've been consistent all week — that's what counts more than any single meal. Got any fun plans this weekend?"
+
+DO NOT include any greeting like "Good morning" if it's afternoon/evening — just be natural.
+DO NOT use emojis excessively — one or two max.
+DO NOT include markdown formatting — plain text only.
+"""
+
+    try:
+        response = run_async(ai_proxy.chat(
+            provider=user['ai_provider'],
+            api_key=user['ai_api_key'],
+            model=user['ai_model'],
+            messages=[
+                {'role': 'system', 'content': nudge_prompt},
+                {'role': 'user', 'content': 'Generate today\'s check-in nudge.'},
+            ]
+        ))
+
+        # Clean up response
+        nudge_text = response.strip()
+        # Remove any markdown formatting the AI might add
+        nudge_text = nudge_text.replace('**', '').replace('##', '').replace('# ', '')
+
+        # Cache it
+        db.save_daily_nudge(user_id, today_iso, nudge_text)
+
+        return jsonify({'nudge': nudge_text, 'cached': False})
+
+    except Exception as e:
+        return jsonify({'nudge': None, 'error': str(e)}), 500
 
 
 # ─── Macro Calculator ──────────────────────────────────────────────────────

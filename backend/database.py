@@ -197,6 +197,32 @@ def init_db():
                 key TEXT PRIMARY KEY,
                 value TEXT
             );
+
+            -- Workouts
+            CREATE TABLE IF NOT EXISTS workouts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                workout_date TEXT NOT NULL,
+                workout_type TEXT NOT NULL,
+                duration_min INTEGER,
+                intensity TEXT DEFAULT 'moderate'
+                    CHECK(intensity IN ('light', 'moderate', 'intense')),
+                notes TEXT,
+                created_at TEXT DEFAULT (datetime('now')),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+
+            -- Cached daily AI nudges (1 per user per day)
+            CREATE TABLE IF NOT EXISTS daily_nudges (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                nudge_date TEXT NOT NULL,
+                message TEXT NOT NULL,
+                nudge_type TEXT DEFAULT 'checkin',
+                created_at TEXT DEFAULT (datetime('now')),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                UNIQUE(user_id, nudge_date)
+            );
         """)
         # ─── Migrations (safe to re-run) ──────────────────────────────────────
         _migrate_add_columns(conn)
@@ -231,11 +257,13 @@ def _migrate_add_columns(conn):
             updated_at TEXT DEFAULT (datetime('now')),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )""")
-    # Add weighin_frequency to user_preferences if missing
+    # Add weighin_frequency and nudge_frequency to user_preferences if missing
     if 'user_preferences' in tables:
         pref_cols = {row[1] for row in conn.execute("PRAGMA table_info(user_preferences)").fetchall()}
         if 'weighin_frequency' not in pref_cols:
             conn.execute("ALTER TABLE user_preferences ADD COLUMN weighin_frequency TEXT DEFAULT 'weekly'")
+        if 'nudge_frequency' not in pref_cols:
+            conn.execute("ALTER TABLE user_preferences ADD COLUMN nudge_frequency TEXT DEFAULT 'daily'")
 
     if 'chat_memory' not in tables:
         conn.execute("""CREATE TABLE IF NOT EXISTS chat_memory (
@@ -749,6 +777,89 @@ def clear_chat_memories(user_id):
     """Clear all memory facts for a user."""
     with get_connection() as conn:
         conn.execute("DELETE FROM chat_memory WHERE user_id = ?", (user_id,))
+
+
+# ─── Workouts ──────────────────────────────────────────────────────────────
+
+def add_workout(user_id, workout_date, workout_type, duration_min=None,
+                intensity='moderate', notes=None):
+    """Log a workout. Returns workout ID."""
+    with get_connection() as conn:
+        cursor = conn.execute("""
+            INSERT INTO workouts (user_id, workout_date, workout_type,
+                                  duration_min, intensity, notes)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (user_id, workout_date, workout_type, duration_min, intensity, notes))
+        return cursor.lastrowid
+
+
+def get_workouts_for_date(user_id, workout_date):
+    """Get all workouts for a user on a specific date."""
+    with get_connection() as conn:
+        rows = conn.execute("""
+            SELECT * FROM workouts WHERE user_id = ? AND workout_date = ?
+            ORDER BY created_at
+        """, (user_id, workout_date)).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_workouts_range(user_id, start_date, end_date):
+    """Get workouts within a date range."""
+    with get_connection() as conn:
+        rows = conn.execute("""
+            SELECT * FROM workouts WHERE user_id = ? AND workout_date BETWEEN ? AND ?
+            ORDER BY workout_date DESC, created_at
+        """, (user_id, start_date, end_date)).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_last_workout(user_id):
+    """Get the most recent workout."""
+    with get_connection() as conn:
+        row = conn.execute("""
+            SELECT * FROM workouts WHERE user_id = ?
+            ORDER BY workout_date DESC, created_at DESC LIMIT 1
+        """, (user_id,)).fetchone()
+        return dict(row) if row else None
+
+
+def delete_workout(workout_id):
+    """Delete a workout entry."""
+    with get_connection() as conn:
+        conn.execute("DELETE FROM workouts WHERE id = ?", (workout_id,))
+
+
+def get_workout_streak(user_id, days=30):
+    """Count distinct workout days in the last N days."""
+    with get_connection() as conn:
+        end = date.today()
+        start = end - __import__('datetime').timedelta(days=days)
+        row = conn.execute("""
+            SELECT COUNT(DISTINCT workout_date) as count
+            FROM workouts WHERE user_id = ? AND workout_date BETWEEN ? AND ?
+        """, (user_id, start.isoformat(), end.isoformat())).fetchone()
+        return row['count'] if row else 0
+
+
+# ─── Daily Nudges (cached AI check-ins) ──────────────────────────────────
+
+def get_daily_nudge(user_id, nudge_date):
+    """Get cached nudge for a specific date."""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM daily_nudges WHERE user_id = ? AND nudge_date = ?",
+            (user_id, nudge_date)
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def save_daily_nudge(user_id, nudge_date, message, nudge_type='checkin'):
+    """Cache a daily nudge message."""
+    with get_connection() as conn:
+        conn.execute("""
+            INSERT OR REPLACE INTO daily_nudges (user_id, nudge_date, message, nudge_type)
+            VALUES (?, ?, ?, ?)
+        """, (user_id, nudge_date, message, nudge_type))
 
 
 # ─── App Settings ───────────────────────────────────────────────────────────

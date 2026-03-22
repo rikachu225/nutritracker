@@ -20,6 +20,9 @@ const Dashboard = {
 
         await this.loadDayData();
         this.checkWeighinReminder();
+        this.loadCoachNudge();
+        this.initWorkoutLogger();
+        this.loadTodayWorkouts();
     },
 
     async loadDayData() {
@@ -192,6 +195,184 @@ const Dashboard = {
             });
         } else if (Notification.permission === 'default') {
             // Will request permission in settings
+        }
+    },
+
+    // ─── Coach Nudge ─────────────────────────────────────────────────────
+
+    async loadCoachNudge() {
+        if (!App.state.currentUser) return;
+        const userId = App.state.currentUser.id;
+        const card = document.getElementById('coach-nudge-card');
+        if (!card) return;
+
+        // Don't show if dismissed today
+        if (localStorage.getItem('nudge_dismissed_' + App.todayISO())) {
+            card.style.display = 'none';
+            return;
+        }
+
+        try {
+            const data = await App.api(`/users/${userId}/daily-nudge`);
+
+            if (!data.nudge) {
+                card.style.display = 'none';
+                return;
+            }
+
+            // Set coach name
+            const coachName = App.state.currentUser.coach_name || 'Coach';
+            document.getElementById('nudge-coach-name').textContent = coachName;
+            document.getElementById('nudge-message').textContent = data.nudge;
+            card.style.display = '';
+
+            // Dismiss handler
+            const dismissBtn = document.getElementById('nudge-dismiss');
+            if (dismissBtn) {
+                const fresh = dismissBtn.cloneNode(true);
+                dismissBtn.parentNode.replaceChild(fresh, dismissBtn);
+                fresh.addEventListener('click', () => {
+                    card.style.display = 'none';
+                    localStorage.setItem('nudge_dismissed_' + App.todayISO(), 'true');
+                });
+            }
+
+            // Try browser notification for nudge too
+            if ('Notification' in window && Notification.permission === 'granted') {
+                const nKey = 'nudge_notif_' + App.todayISO();
+                if (!localStorage.getItem(nKey)) {
+                    localStorage.setItem(nKey, 'true');
+                    new Notification(`${coachName} says:`, {
+                        body: data.nudge.substring(0, 120),
+                        icon: '/assets/favicon.svg',
+                        tag: 'coach-nudge',
+                    });
+                }
+            }
+        } catch (err) {
+            console.warn('Nudge load failed:', err);
+            card.style.display = 'none';
+        }
+    },
+
+    // ─── Workout Logger ────────────────────────────────────────────────
+
+    _selectedWorkoutType: null,
+
+    initWorkoutLogger() {
+        const toggleBtn = document.getElementById('workout-toggle');
+        const form = document.getElementById('workout-form');
+        if (!toggleBtn || !form) return;
+
+        // Clone to clear old listeners
+        const freshToggle = toggleBtn.cloneNode(true);
+        toggleBtn.parentNode.replaceChild(freshToggle, toggleBtn);
+
+        freshToggle.addEventListener('click', () => {
+            const isOpen = form.style.display !== 'none';
+            form.style.display = isOpen ? 'none' : '';
+            freshToggle.textContent = isOpen ? '+' : '−';
+        });
+
+        // Type buttons
+        const grid = document.getElementById('workout-type-grid');
+        if (grid) {
+            grid.querySelectorAll('.workout-type-btn').forEach(btn => {
+                const fresh = btn.cloneNode(true);
+                btn.parentNode.replaceChild(fresh, btn);
+                fresh.addEventListener('click', () => {
+                    grid.querySelectorAll('.workout-type-btn').forEach(b => b.classList.remove('active'));
+                    fresh.classList.add('active');
+                    this._selectedWorkoutType = fresh.dataset.type;
+                    document.getElementById('workout-details').style.display = '';
+                });
+            });
+        }
+
+        // Save button
+        const saveBtn = document.getElementById('workout-save');
+        if (saveBtn) {
+            const freshSave = saveBtn.cloneNode(true);
+            saveBtn.parentNode.replaceChild(freshSave, saveBtn);
+            freshSave.addEventListener('click', async () => {
+                if (!this._selectedWorkoutType) {
+                    App.toast('Select a workout type', 'error');
+                    return;
+                }
+                const duration = parseInt(document.getElementById('workout-duration').value) || null;
+                const intensity = document.getElementById('workout-intensity').value;
+
+                freshSave.disabled = true;
+                try {
+                    await App.api(`/users/${App.state.currentUser.id}/workouts`, {
+                        method: 'POST',
+                        body: {
+                            workout_date: App.todayISO(),
+                            workout_type: this._selectedWorkoutType,
+                            duration_min: duration,
+                            intensity: intensity,
+                        }
+                    });
+                    App.toast('Workout logged!', 'success');
+
+                    // Reset form
+                    this._selectedWorkoutType = null;
+                    document.getElementById('workout-form').style.display = 'none';
+                    document.getElementById('workout-details').style.display = 'none';
+                    document.getElementById('workout-duration').value = '';
+                    document.getElementById('workout-type-grid').querySelectorAll('.workout-type-btn')
+                        .forEach(b => b.classList.remove('active'));
+                    document.getElementById('workout-toggle').textContent = '+';
+
+                    this.loadTodayWorkouts();
+                } catch (err) {
+                    App.toast('Failed to log workout', 'error');
+                } finally {
+                    freshSave.disabled = false;
+                }
+            });
+        }
+    },
+
+    async loadTodayWorkouts() {
+        if (!App.state.currentUser) return;
+        const userId = App.state.currentUser.id;
+        const container = document.getElementById('today-workouts');
+        if (!container) return;
+
+        try {
+            const workouts = await App.api(`/users/${userId}/workouts?date=${App.todayISO()}`);
+            if (!workouts.length) {
+                container.innerHTML = '';
+                return;
+            }
+
+            container.innerHTML = workouts.map(w => {
+                const intensityBadge = {
+                    light: '🟢', moderate: '🟡', intense: '🔴'
+                }[w.intensity] || '🟡';
+
+                return `<div class="workout-item">
+                    <span class="workout-item-type">${w.workout_type}</span>
+                    <span class="workout-item-detail">${w.duration_min ? w.duration_min + ' min' : ''} ${intensityBadge}</span>
+                    <button class="workout-item-delete" data-id="${w.id}" title="Delete">✕</button>
+                </div>`;
+            }).join('');
+
+            // Delete handlers
+            container.querySelectorAll('.workout-item-delete').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    try {
+                        await App.api(`/users/${userId}/workouts/${btn.dataset.id}`, { method: 'DELETE' });
+                        this.loadTodayWorkouts();
+                        App.toast('Workout removed', 'success');
+                    } catch (err) {
+                        App.toast('Failed to delete', 'error');
+                    }
+                });
+            });
+        } catch (err) {
+            console.warn('Failed to load workouts:', err);
         }
     },
 
@@ -661,6 +842,27 @@ const Dashboard = {
                 </div>
             ` : ''}
         `;
+
+        // Nudge frequency
+        const nudgeFreq = prefs?.nudge_frequency || 'daily';
+        const nudgeSelect = document.getElementById('nudge-frequency');
+        if (nudgeSelect) {
+            nudgeSelect.value = nudgeFreq;
+            const freshNudge = nudgeSelect.cloneNode(true);
+            nudgeSelect.parentNode.replaceChild(freshNudge, nudgeSelect);
+            freshNudge.value = nudgeFreq;
+            freshNudge.addEventListener('change', async (e) => {
+                try {
+                    await App.api(`/users/${user.id}/preferences`, {
+                        method: 'PUT',
+                        body: { nudge_frequency: e.target.value }
+                    });
+                    App.toast('Coach nudge frequency updated', 'success');
+                } catch (err) {
+                    App.toast('Failed to save', 'error');
+                }
+            });
+        }
 
         document.getElementById('save-checkin')?.addEventListener('click', async () => {
             let w = parseFloat(document.getElementById('checkin-weight').value);
