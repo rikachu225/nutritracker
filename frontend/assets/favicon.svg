@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f1a14"/>
+      <stop offset="100%" stop-color="#0a0a0a"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6ee7b7"/>
+      <stop offset="100%" stop-color="#34d399"/>
+    </linearGradient>
+  </defs>
+  <!-- Rounded square background -->
+  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+  <!-- Fork-and-leaf icon -->
+  <g transform="translate(32,32)">
+    <!-- Leaf shape (nutrition) -->
+    <path d="M-2,-18 C6,-16 14,-10 14,-2 C14,6 8,12 0,14 C0,14 0,-2 0,-2 C0,-2 -6,-12 -2,-18Z"
+          fill="url(#accent)" opacity="0.9"/>
+    <!-- Leaf vein -->
+    <line x1="0" y1="-14" x2="0" y2="14" stroke="#0a0a0a" stroke-width="1.5" opacity="0.3"/>
+    <!-- Stem -->
+    <line x1="0" y1="14" x2="0" y2="22" stroke="url(#accent)" stroke-width="2.5" stroke-linecap="round"/>
+    <!-- Small measurement tick marks (tracking) -->
+    <line x1="-4" y1="18" x2="4" y2="18" stroke="url(#accent)" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+  </g>
+</svg>

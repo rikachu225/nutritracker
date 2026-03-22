@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0a0a0a">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>NutriTracker</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/assets/icons/icon-192.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <!-- Install Prompt Banner (shows on mobile when not installed as PWA) -->
+    <div id="install-banner" class="install-banner hidden">
+        <div class="install-banner-content">
+            <div class="install-banner-icon">📱</div>
+            <div class="install-banner-text">
+                <strong>Install this app</strong>
+                <span id="install-instructions"></span>
+            </div>
+            <button id="install-dismiss" class="install-dismiss">&times;</button>
+        </div>
+    </div>
+
+    <!-- App Shell -->
+    <div id="app">
+        <!-- Loading state -->
+        <div id="loading-screen" class="view active">
+            <div class="loading-container">
+                <div class="loading-pulse"></div>
+                <p class="loading-text">Loading...</p>
+            </div>
+        </div>
+
+        <!-- View: App Setup (first run) -->
+        <div id="view-setup" class="view">
+            <div class="onboarding-container">
+                <div class="glass-panel setup-panel">
+                    <div class="setup-icon">🥗</div>
+                    <h1 class="display-text">Welcome</h1>
+                    <p class="body-text muted">Your personal nutrition tracker.<br>Private. Local. Yours.</p>
+                    <div class="input-group">
+                        <label class="input-label">Name your app</label>
+                        <input type="text" id="setup-app-name" class="text-input" placeholder="NutriTracker" maxlength="30" autocomplete="off">
+                        <p class="input-hint">This appears on your home screen</p>
+                    </div>
+                    <button id="setup-continue" class="btn btn-primary btn-lg">Get Started</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- View: User Select -->
+        <div id="view-user-select" class="view">
+            <div class="onboarding-container">
+                <div class="glass-panel user-select-panel">
+                    <div class="user-select-header">
+                        <h1 class="display-text" id="user-select-title">Who's tracking?</h1>
+                        <button id="manage-profiles-btn" class="btn btn-ghost btn-sm">Manage</button>
+                    </div>
+                    <div id="user-list" class="user-grid"></div>
+                    <button id="add-user-btn" class="btn btn-secondary btn-lg">
+                        <span class="btn-icon">+</span> New Profile
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- View: Onboarding Flow -->
+        <div id="view-onboarding" class="view">
+            <div class="onboarding-container">
+                <!-- Step indicators -->
+                <div class="step-indicators" id="step-indicators"></div>
+
+                <!-- Step 1: Basic Info -->
+                <div class="glass-panel onboarding-step" data-step="1">
+                    <h2 class="section-title">About You</h2>
+                    <p class="body-text muted">Let's set up your profile</p>
+                    <div class="input-group">
+                        <label class="input-label">Name</label>
+                        <input type="text" id="ob-name" class="text-input" placeholder="Your name" autocomplete="off">
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">Pick your avatar</label>
+                        <div class="emoji-grid" id="emoji-grid"></div>
+                    </div>
+                    <div class="input-row">
+                        <div class="input-group">
+                            <label class="input-label">Age</label>
+                            <input type="number" id="ob-age" class="text-input" placeholder="30" min="13" max="120">
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label">Sex</label>
+                            <select id="ob-sex" class="text-input">
+                                <option value="male">Male</option>
+                                <option value="female">Female</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Body Stats -->
+                <div class="glass-panel onboarding-step" data-step="2" style="display:none">
+                    <h2 class="section-title">Your Body</h2>
+                    <p class="body-text muted">Used to calculate your targets</p>
+                    <div class="unit-toggle" id="unit-toggle">
+                        <button class="unit-btn active" data-unit="metric">Metric</button>
+                        <button class="unit-btn" data-unit="imperial">Imperial</button>
+                    </div>
+                    <div class="input-row">
+                        <div class="input-group">
+                            <label class="input-label" id="height-label">Height (cm)</label>
+                            <input type="number" id="ob-height" class="text-input" placeholder="170" step="0.1">
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label" id="weight-label">Weight (kg)</label>
+                            <input type="number" id="ob-weight" class="text-input" placeholder="70" step="0.1">
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">Activity Level</label>
+                        <select id="ob-activity" class="text-input">
+                            <option value="sedentary">Sedentary — desk job, minimal exercise</option>
+                            <option value="light">Light — 1–3 days/week</option>
+                            <option value="moderate" selected>Moderate — 3–5 days/week</option>
+                            <option value="active">Active — 6–7 days/week</option>
+                            <option value="very_active">Very Active — athlete / physical job</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Step 3: Body Composition -->
+                <div class="glass-panel onboarding-step" data-step="3" style="display:none">
+                    <h2 class="section-title">Body Composition</h2>
+                    <p class="body-text muted">Optional but helps accuracy</p>
+                    <div class="bf-method-tabs">
+                        <button class="bf-tab active" data-method="visual">Visual Estimate</button>
+                        <button class="bf-tab" data-method="measure">Tape Measure</button>
+                        <button class="bf-tab" data-method="skip">Skip</button>
+                    </div>
+                    <div id="bf-visual" class="bf-section">
+                        <p class="body-text small muted">Select the image that looks closest to you</p>
+                        <div class="bf-visual-grid" id="bf-visual-grid"></div>
+                        <div class="bf-result" id="bf-visual-result"></div>
+                    </div>
+                    <div id="bf-measure" class="bf-section" style="display:none">
+                        <p class="body-text small muted">The Navy method calculates body fat from simple measurements</p>
+                        <div class="input-row">
+                            <div class="input-group">
+                                <label class="input-label">Neck (cm)</label>
+                                <input type="number" id="ob-neck" class="text-input" placeholder="38" step="0.1">
+                            </div>
+                            <div class="input-group">
+                                <label class="input-label">Waist (cm)</label>
+                                <input type="number" id="ob-waist" class="text-input" placeholder="82" step="0.1">
+                            </div>
+                        </div>
+                        <div class="input-group" id="hip-group">
+                            <label class="input-label">Hip (cm) — required for female</label>
+                            <input type="number" id="ob-hip" class="text-input" placeholder="96" step="0.1">
+                        </div>
+                        <button id="calc-navy-bf" class="btn btn-secondary">Calculate</button>
+                        <div class="bf-result" id="bf-navy-result"></div>
+                    </div>
+                    <div id="bf-skip" class="bf-section" style="display:none">
+                        <p class="body-text muted">No problem — we'll use general population averages. You can add this later in Settings.</p>
+                    </div>
+                </div>
+
+                <!-- Step 4: Goals -->
+                <div class="glass-panel onboarding-step" data-step="4" style="display:none">
+                    <h2 class="section-title">Your Goal</h2>
+                    <p class="body-text muted">What are you working toward?</p>
+                    <div class="goal-cards" id="goal-cards">
+                        <button class="goal-card" data-goal="lose_fat">
+                            <span class="goal-icon">🔥</span>
+                            <span class="goal-label">Lose Fat</span>
+                            <span class="goal-desc">Calorie deficit + high protein</span>
+                        </button>
+                        <button class="goal-card" data-goal="gain_muscle">
+                            <span class="goal-icon">💪</span>
+                            <span class="goal-label">Build Muscle</span>
+                            <span class="goal-desc">Calorie surplus + training</span>
+                        </button>
+                        <button class="goal-card" data-goal="maintain">
+                            <span class="goal-icon">⚖️</span>
+                            <span class="goal-label">Maintain</span>
+                            <span class="goal-desc">Stay where you are</span>
+                        </button>
+                        <button class="goal-card" data-goal="recomp">
+                            <span class="goal-icon">🔄</span>
+                            <span class="goal-label">Recomp</span>
+                            <span class="goal-desc">Lose fat + gain muscle</span>
+                        </button>
+                    </div>
+                    <div class="input-row" id="goal-details" style="display:none">
+                        <div class="input-group">
+                            <label class="input-label" id="goal-weight-label">Target Weight (kg)</label>
+                            <input type="number" id="ob-goal-weight" class="text-input" placeholder="65" step="0.1">
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label">Timeline</label>
+                            <select id="ob-timeline" class="text-input">
+                                <option value="8">8 weeks</option>
+                                <option value="12" selected>12 weeks</option>
+                                <option value="16">16 weeks</option>
+                                <option value="24">24 weeks</option>
+                                <option value="52">1 year</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="input-group" id="aggression-group" style="display:none">
+                        <label class="input-label">How aggressive?</label>
+                        <div class="aggression-options">
+                            <button class="aggression-btn" data-val="conservative">
+                                <strong>Conservative</strong><br><small>Slower but sustainable</small>
+                            </button>
+                            <button class="aggression-btn active" data-val="moderate">
+                                <strong>Moderate</strong><br><small>Balanced approach</small>
+                            </button>
+                            <button class="aggression-btn" data-val="aggressive">
+                                <strong>Aggressive</strong><br><small>Faster but harder</small>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 5: Lifestyle & Preferences -->
+                <div class="glass-panel onboarding-step" data-step="5" style="display:none">
+                    <h2 class="section-title">Your Lifestyle</h2>
+                    <p class="body-text muted">Helps us give better food suggestions</p>
+
+                    <div class="input-group">
+                        <label class="input-label">Dietary Restrictions</label>
+                        <div class="chip-grid" id="diet-chips">
+                            <button class="chip-option" data-val="vegetarian">🥬 Vegetarian</button>
+                            <button class="chip-option" data-val="vegan">🌱 Vegan</button>
+                            <button class="chip-option" data-val="keto">🥓 Keto</button>
+                            <button class="chip-option" data-val="paleo">🍖 Paleo</button>
+                            <button class="chip-option" data-val="halal">☪️ Halal</button>
+                            <button class="chip-option" data-val="kosher">✡️ Kosher</button>
+                            <button class="chip-option" data-val="gluten_free">🌾 Gluten-Free</button>
+                            <button class="chip-option" data-val="dairy_free">🥛 Dairy-Free</button>
+                            <button class="chip-option" data-val="pescatarian">🐟 Pescatarian</button>
+                            <button class="chip-option" data-val="low_carb">📉 Low Carb</button>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label class="input-label">Food Allergies</label>
+                        <div class="chip-grid" id="allergy-chips">
+                            <button class="chip-option" data-val="nuts">🥜 Nuts</button>
+                            <button class="chip-option" data-val="peanuts">🥜 Peanuts</button>
+                            <button class="chip-option" data-val="dairy">🧀 Dairy</button>
+                            <button class="chip-option" data-val="eggs">🥚 Eggs</button>
+                            <button class="chip-option" data-val="shellfish">🦐 Shellfish</button>
+                            <button class="chip-option" data-val="soy">🫘 Soy</button>
+                            <button class="chip-option" data-val="wheat">🌾 Wheat</button>
+                            <button class="chip-option" data-val="fish">🐟 Fish</button>
+                            <button class="chip-option" data-val="sesame">🫘 Sesame</button>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label class="input-label">Favorite Cuisines</label>
+                        <div class="chip-grid" id="cuisine-chips">
+                            <button class="chip-option" data-val="american">🇺🇸 American</button>
+                            <button class="chip-option" data-val="mexican">🇲🇽 Mexican</button>
+                            <button class="chip-option" data-val="italian">🇮🇹 Italian</button>
+                            <button class="chip-option" data-val="japanese">🇯🇵 Japanese</button>
+                            <button class="chip-option" data-val="chinese">🇨🇳 Chinese</button>
+                            <button class="chip-option" data-val="korean">🇰🇷 Korean</button>
+                            <button class="chip-option" data-val="thai">🇹🇭 Thai</button>
+                            <button class="chip-option" data-val="indian">🇮🇳 Indian</button>
+                            <button class="chip-option" data-val="mediterranean">🫒 Mediterranean</button>
+                            <button class="chip-option" data-val="middle_eastern">🧆 Middle Eastern</button>
+                        </div>
+                    </div>
+
+                    <div class="input-row">
+                        <div class="input-group">
+                            <label class="input-label">How often do you cook?</label>
+                            <select id="ob-cooking-freq" class="text-input">
+                                <option value="daily">Every day</option>
+                                <option value="few_times_week" selected>Few times/week</option>
+                                <option value="weekly">About once a week</option>
+                                <option value="rarely">Rarely</option>
+                                <option value="never">Never</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label">Dining out?</label>
+                            <select id="ob-dining-freq" class="text-input">
+                                <option value="daily">Every day</option>
+                                <option value="few_times_week">Few times/week</option>
+                                <option value="weekly" selected>About once a week</option>
+                                <option value="rarely">Rarely</option>
+                                <option value="never">Never</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="input-row">
+                        <div class="input-group">
+                            <label class="input-label">Fast food?</label>
+                            <select id="ob-fastfood-freq" class="text-input">
+                                <option value="daily">Every day</option>
+                                <option value="few_times_week">Few times/week</option>
+                                <option value="weekly">Weekly</option>
+                                <option value="rarely" selected>Rarely</option>
+                                <option value="never">Never</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label">Travel?</label>
+                            <select id="ob-travel-freq" class="text-input">
+                                <option value="weekly">Every week</option>
+                                <option value="monthly">Monthly</option>
+                                <option value="rarely" selected>Rarely</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label class="input-label">Budget</label>
+                        <div class="aggression-options">
+                            <button class="budget-btn" data-val="budget">
+                                <strong>Budget</strong><br><small>Keep it cheap</small>
+                            </button>
+                            <button class="budget-btn active" data-val="moderate">
+                                <strong>Moderate</strong><br><small>Balanced spending</small>
+                            </button>
+                            <button class="budget-btn" data-val="no_limit">
+                                <strong>No Limit</strong><br><small>Best quality</small>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label class="input-label">Anything else? (optional)</label>
+                        <textarea id="ob-lifestyle-notes" class="text-input" rows="2"
+                            placeholder="e.g., I meal prep on Sundays, I'm lactose intolerant but can handle hard cheese"></textarea>
+                    </div>
+                </div>
+
+                <!-- Step 6: AI Setup -->
+                <div class="glass-panel onboarding-step" data-step="6" style="display:none">
+                    <h2 class="section-title">AI Setup</h2>
+                    <p class="body-text muted">Your key, your data. We just proxy the request.</p>
+                    <div class="input-group">
+                        <label class="input-label">Name your Coach</label>
+                        <input type="text" id="ob-coach-name" class="text-input" placeholder="Coach, Aria, Max, Sarge..." maxlength="20" autocomplete="off">
+                        <p class="input-hint">Your AI coach's name — they'll introduce themselves with it</p>
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">AI Provider</label>
+                        <select id="ob-provider" class="text-input">
+                            <option value="google">Google Gemini (recommended)</option>
+                            <option value="openai">OpenAI</option>
+                            <option value="anthropic">Anthropic Claude</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">Model</label>
+                        <select id="ob-model" class="text-input"></select>
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">API Key</label>
+                        <input type="password" id="ob-api-key" class="text-input" placeholder="Paste your API key">
+                        <p class="input-hint">Stored locally on this server. Never sent anywhere except the AI provider.</p>
+                    </div>
+                    <button id="ob-validate-key" class="btn btn-secondary">
+                        <span class="btn-icon">🔑</span> Test Key
+                    </button>
+                    <div id="key-validation-result" class="validation-result"></div>
+                </div>
+
+                <!-- Step 7: Summary -->
+                <div class="glass-panel onboarding-step" data-step="7" style="display:none">
+                    <h2 class="section-title">Your Plan</h2>
+                    <p class="body-text muted">Based on your profile, here are your daily targets</p>
+                    <div class="targets-preview" id="targets-preview"></div>
+                    <p class="body-text small muted">You can adjust these anytime in Settings</p>
+                </div>
+
+                <!-- Navigation buttons -->
+                <div class="onboarding-nav">
+                    <button id="ob-back" class="btn btn-ghost" style="visibility:hidden">← Back</button>
+                    <button id="ob-next" class="btn btn-primary">Next →</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- View: Dashboard -->
+        <div id="view-dashboard" class="view">
+            <!-- Top bar -->
+            <header class="dashboard-header">
+                <div class="header-left">
+                    <button id="header-user-btn" class="avatar-btn" title="Switch user"></button>
+                    <div>
+                        <h1 class="header-title" id="header-app-name">NutriTracker</h1>
+                        <p class="header-date" id="header-date"></p>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button id="header-settings-btn" class="icon-btn" title="Settings">⚙️</button>
+                </div>
+            </header>
+
+            <!-- Weigh-in Reminder Banner -->
+            <div id="weighin-reminder" class="weighin-reminder" style="display:none">
+                <div class="weighin-reminder-content">
+                    <span class="weighin-icon">⚖️</span>
+                    <span class="weighin-msg">Time for your weigh-in!</span>
+                    <div class="weighin-actions">
+                        <button id="weighin-quick-btn" class="btn btn-primary btn-sm">Log Weight</button>
+                        <button id="weighin-dismiss" class="weighin-dismiss">✕</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Daily Summary Cards -->
+            <div class="dashboard-content" id="dashboard-content">
+                <!-- Calories ring -->
+                <div class="summary-hero">
+                    <div class="calorie-ring-container">
+                        <svg class="calorie-ring" viewBox="0 0 200 200">
+                            <circle class="ring-bg" cx="100" cy="100" r="85" />
+                            <circle class="ring-fill" id="cal-ring" cx="100" cy="100" r="85" />
+                        </svg>
+                        <div class="ring-center">
+                            <span class="ring-number" id="cal-consumed">0</span>
+                            <span class="ring-label">of <span id="cal-target">2000</span> kcal</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Macro bars -->
+                <div class="macro-bars">
+                    <div class="macro-bar-item">
+                        <div class="macro-bar-header">
+                            <span class="macro-name">Protein</span>
+                            <span class="macro-values"><span id="protein-consumed">0</span>/<span id="protein-target">150</span>g</span>
+                        </div>
+                        <div class="macro-bar-track"><div class="macro-bar-fill protein" id="protein-bar"></div></div>
+                    </div>
+                    <div class="macro-bar-item">
+                        <div class="macro-bar-header">
+                            <span class="macro-name">Carbs</span>
+                            <span class="macro-values"><span id="carbs-consumed">0</span>/<span id="carbs-target">200</span>g</span>
+                        </div>
+                        <div class="macro-bar-track"><div class="macro-bar-fill carbs" id="carbs-bar"></div></div>
+                    </div>
+                    <div class="macro-bar-item">
+                        <div class="macro-bar-header">
+                            <span class="macro-name">Fat</span>
+                            <span class="macro-values"><span id="fat-consumed">0</span>/<span id="fat-target">70</span>g</span>
+                        </div>
+                        <div class="macro-bar-track"><div class="macro-bar-fill fat" id="fat-bar"></div></div>
+                    </div>
+                </div>
+
+                <!-- Meals list -->
+                <div class="section-header">
+                    <h2 class="section-title">Today's Meals</h2>
+                    <div class="section-header-right">
+                        <button id="view-history-btn" class="btn btn-ghost btn-sm">📅 History</button>
+                        <button id="add-meal-btn" class="btn btn-primary btn-sm">
+                            <span class="btn-icon">📷</span> Add Meal
+                        </button>
+                    </div>
+                </div>
+                <div id="meals-list" class="meals-list">
+                    <div class="empty-state">
+                        <p class="empty-icon">🍽️</p>
+                        <p class="empty-text">No meals logged yet</p>
+                        <p class="empty-subtext">Tap "Add Meal" to photograph your food</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Navigation -->
+        </div>
+
+        <!-- View: Add Meal (Camera / Upload) -->
+        <div id="view-add-meal" class="view">
+            <header class="sub-header">
+                <button class="back-btn" data-back="dashboard">←</button>
+                <h2 class="sub-title">Log Meal</h2>
+                <div></div>
+            </header>
+            <div class="add-meal-content">
+                <div class="meal-type-selector">
+                    <button class="meal-type-btn active" data-type="meal">🍽️ Meal</button>
+                    <button class="meal-type-btn" data-type="breakfast">🌅 Breakfast</button>
+                    <button class="meal-type-btn" data-type="lunch">☀️ Lunch</button>
+                    <button class="meal-type-btn" data-type="dinner">🌙 Dinner</button>
+                    <button class="meal-type-btn" data-type="snack">🍿 Snack</button>
+                </div>
+
+                <!-- Camera / Upload area -->
+                <div class="capture-area">
+                    <div id="camera-preview-container" class="camera-container" style="display:none">
+                        <video id="camera-preview" autoplay playsinline></video>
+                        <button id="capture-btn" class="capture-btn">📸</button>
+                        <button id="camera-close" class="camera-close-btn">✕</button>
+                    </div>
+                    <div id="photo-preview-container" class="photo-preview" style="display:none">
+                        <img id="photo-preview" alt="Food photo">
+                        <button id="retake-btn" class="btn btn-ghost btn-sm">Retake</button>
+                    </div>
+                    <div id="upload-area" class="upload-zone">
+                        <div class="upload-content">
+                            <span class="upload-icon">📷</span>
+                            <p class="upload-text">Take a photo or upload</p>
+                            <div class="upload-buttons">
+                                <button id="camera-btn" class="btn btn-primary">
+                                    <span class="btn-icon">📷</span> Camera
+                                </button>
+                                <label class="btn btn-secondary upload-label">
+                                    <span class="btn-icon">📁</span> Upload
+                                    <input type="file" id="file-upload" accept="image/*" hidden>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Description input -->
+                <div class="input-group">
+                    <label class="input-label">What is this? (optional — helps AI accuracy)</label>
+                    <input type="text" id="meal-description" class="text-input" placeholder="e.g., Grilled chicken salad from Sweetgreen">
+                </div>
+
+                <!-- Analyze button -->
+                <button id="analyze-btn" class="btn btn-primary btn-lg" disabled>
+                    <span class="btn-icon">🔍</span> Analyze with AI
+                </button>
+
+                <!-- Manual entry toggle -->
+                <button id="manual-entry-toggle" class="btn btn-ghost">Or enter macros manually</button>
+
+                <!-- Manual entry form -->
+                <div id="manual-entry" class="manual-entry" style="display:none">
+                    <div class="input-row">
+                        <div class="input-group">
+                            <label class="input-label">Calories</label>
+                            <input type="number" id="manual-calories" class="text-input" placeholder="0">
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label">Protein (g)</label>
+                            <input type="number" id="manual-protein" class="text-input" placeholder="0">
+                        </div>
+                    </div>
+                    <div class="input-row">
+                        <div class="input-group">
+                            <label class="input-label">Carbs (g)</label>
+                            <input type="number" id="manual-carbs" class="text-input" placeholder="0">
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label">Fat (g)</label>
+                            <input type="number" id="manual-fat" class="text-input" placeholder="0">
+                        </div>
+                    </div>
+                    <button id="manual-save-btn" class="btn btn-primary btn-lg">Save Meal</button>
+                </div>
+
+                <!-- AI Result (shown after analysis) -->
+                <div id="analysis-result" class="analysis-result" style="display:none"></div>
+            </div>
+        </div>
+
+        <!-- View: AI Coach Chat -->
+        <div id="view-chat" class="view">
+            <header class="sub-header">
+                <button id="chat-drawer-btn" class="icon-btn" title="Conversations">☰</button>
+                <h2 class="sub-title" id="chat-conv-title">Coach</h2>
+                <button id="new-chat-btn" class="icon-btn" title="New chat">✚</button>
+            </header>
+
+            <!-- Conversation Drawer (slide-in from left) -->
+            <div id="conv-drawer-backdrop" class="conv-drawer-backdrop"></div>
+            <aside id="conv-drawer" class="conv-drawer">
+                <div class="conv-drawer-header">
+                    <h3 class="conv-drawer-title">Chats</h3>
+                    <button id="new-chat-btn-drawer" class="btn btn-primary btn-sm" onclick="Chat.startNewChat()">+ New</button>
+                </div>
+                <div id="conversation-list" class="conv-list"></div>
+            </aside>
+
+            <div class="chat-container" id="chat-container">
+                <div class="chat-messages" id="chat-messages">
+                    <div class="chat-welcome">
+                        <p class="chat-welcome-icon">🤖</p>
+                        <p class="chat-welcome-text">I'm your nutrition coach.<br>Ask me anything about your diet, goals, or meal planning.</p>
+                    </div>
+                </div>
+                <div class="chat-input-container">
+                    <div class="chat-input-row">
+                        <button id="voice-input-btn" class="icon-btn voice-btn" title="Voice input">🎤</button>
+                        <input type="text" id="chat-input" class="text-input chat-text-input" placeholder="Ask your coach...">
+                        <button id="chat-send-btn" class="btn btn-primary btn-sm chat-send">Send</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- View: Trends -->
+        <div id="view-trends" class="view">
+            <header class="sub-header">
+                <button class="back-btn" data-back="dashboard">←</button>
+                <h2 class="sub-title">Trends</h2>
+                <div></div>
+            </header>
+            <div class="trends-content" id="trends-content">
+                <div class="trends-period-selector">
+                    <button class="period-btn active" data-days="7">7 days</button>
+                    <button class="period-btn" data-days="14">14 days</button>
+                    <button class="period-btn" data-days="30">30 days</button>
+                </div>
+                <div class="trend-chart-container">
+                    <h3 class="chart-title">Calories</h3>
+                    <canvas id="calories-chart" class="trend-chart"></canvas>
+                </div>
+                <div class="trend-chart-container">
+                    <h3 class="chart-title">Weight</h3>
+                    <canvas id="weight-chart" class="trend-chart"></canvas>
+                </div>
+
+                <!-- AI Trend Analysis -->
+                <div class="trend-analysis-section">
+                    <button id="analyze-trends-btn" class="btn btn-secondary btn-lg" style="width:100%">
+                        <span class="btn-icon">🧠</span> Analyze My Trends
+                    </button>
+                    <div id="trend-analysis-result" class="trend-analysis-result" style="display:none"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- View: Meal History -->
+        <div id="view-history" class="view">
+            <header class="sub-header">
+                <button class="back-btn" data-back="dashboard">←</button>
+                <h2 class="sub-title">Meal History</h2>
+                <button id="history-manage-btn" class="btn btn-ghost btn-sm">Select</button>
+            </header>
+            <div class="history-content">
+                <!-- Bulk Delete Bar (hidden until Select mode) -->
+                <div id="history-bulk-bar" class="history-bulk-bar" style="display:none">
+                    <div class="bulk-bar-left">
+                        <button id="bulk-select-all" class="btn btn-ghost btn-sm">Select All</button>
+                        <span id="bulk-count" class="bulk-count">0 selected</span>
+                    </div>
+                    <div class="bulk-bar-right">
+                        <button id="bulk-delete-range" class="btn btn-ghost btn-sm">Delete Range…</button>
+                        <button id="bulk-delete-btn" class="btn btn-danger btn-sm" disabled>Delete</button>
+                    </div>
+                </div>
+
+                <!-- Day list -->
+                <div id="history-list" class="history-list">
+                    <div class="empty-state">
+                        <p class="empty-icon">📅</p>
+                        <p class="empty-text">No meal history yet</p>
+                    </div>
+                </div>
+
+                <!-- Load More -->
+                <div id="history-load-more" class="history-load-more" style="display:none">
+                    <button id="load-more-btn" class="btn btn-secondary">Load More</button>
+                </div>
+            </div>
+
+            <!-- Range Delete Modal -->
+            <div id="range-delete-modal" class="modal-backdrop" style="display:none">
+                <div class="glass-panel modal-panel">
+                    <h3 class="section-title">Delete Date Range</h3>
+                    <p class="body-text small muted">All meals within this range will be permanently deleted.</p>
+                    <div class="input-row" style="margin-top:16px">
+                        <div class="input-group">
+                            <label class="input-label">From</label>
+                            <input type="date" id="range-start" class="text-input">
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label">To</label>
+                            <input type="date" id="range-end" class="text-input">
+                        </div>
+                    </div>
+                    <div class="modal-actions">
+                        <button id="range-cancel" class="btn btn-ghost">Cancel</button>
+                        <button id="range-confirm" class="btn btn-danger">Delete Range</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- View: Settings -->
+        <div id="view-settings" class="view">
+            <header class="sub-header">
+                <button class="back-btn" data-back="dashboard">←</button>
+                <h2 class="sub-title">Settings</h2>
+                <div></div>
+            </header>
+            <div class="settings-content">
+                <div class="settings-section">
+                    <h3 class="settings-title">Customize</h3>
+                    <div class="settings-card" id="settings-customize">
+                        <div class="input-group" style="margin-top:0">
+                            <label class="input-label">App Name</label>
+                            <div class="input-row">
+                                <input type="text" id="settings-app-name" class="text-input" placeholder="NutriTracker" maxlength="30">
+                                <button id="save-app-name" class="btn btn-primary btn-sm">Save</button>
+                            </div>
+                            <p class="input-hint">Appears in the header and browser title</p>
+                        </div>
+                        <div class="input-group">
+                            <label class="input-label">Coach Name</label>
+                            <div class="input-row">
+                                <input type="text" id="settings-coach-name" class="text-input" placeholder="Coach" maxlength="20">
+                                <button id="save-coach-name" class="btn btn-primary btn-sm">Save</button>
+                            </div>
+                            <p class="input-hint">Your AI coach's name</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="settings-section">
+                    <h3 class="settings-title">Profile</h3>
+                    <div class="settings-card" id="settings-profile"></div>
+                </div>
+                <div class="settings-section">
+                    <h3 class="settings-title">Daily Targets</h3>
+                    <div class="settings-card" id="settings-targets"></div>
+                </div>
+                <div class="settings-section">
+                    <h3 class="settings-title">AI Configuration</h3>
+                    <div class="settings-card" id="settings-ai"></div>
+                </div>
+                <div class="settings-section">
+                    <h3 class="settings-title">Daily Check-In</h3>
+                    <div class="settings-card" id="settings-checkin"></div>
+                </div>
+                <div class="settings-section">
+                    <h3 class="settings-title">Remote Access</h3>
+                    <div class="settings-card">
+                        <p class="body-text small muted">
+                            To access this app outside your home network, set up
+                            <a href="https://tailscale.com" target="_blank">Tailscale</a> (recommended — zero config)
+                            or OpenVPN on your server and phone.
+                        </p>
+                        <p class="body-text small muted" style="margin-top:8px">
+                            Once connected to your VPN, use the same network URL to access this app from anywhere.
+                        </p>
+                    </div>
+                </div>
+                <div class="settings-section">
+                    <button id="switch-user-btn" class="btn btn-secondary btn-lg">Switch User</button>
+                    <button id="delete-profile-btn" class="btn btn-danger btn-lg" style="margin-top:12px">Delete Profile</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Global Bottom Navigation (visible when logged in) -->
+    <nav class="bottom-nav" id="global-bottom-nav" style="display:none">
+        <button class="nav-btn active" data-tab="dashboard">
+            <span class="nav-icon">📊</span>
+            <span class="nav-label">Dashboard</span>
+        </button>
+        <button class="nav-btn" data-tab="add">
+            <span class="nav-icon-add">+</span>
+        </button>
+        <button class="nav-btn" data-tab="trends">
+            <span class="nav-icon">📈</span>
+            <span class="nav-label">Trends</span>
+        </button>
+        <button class="nav-btn" data-tab="chat">
+            <span class="nav-icon">💬</span>
+            <span class="nav-label">Coach</span>
+        </button>
+        <button class="nav-btn" data-tab="settings">
+            <span class="nav-icon">⚙️</span>
+            <span class="nav-label">Settings</span>
+        </button>
+    </nav>
+
+    <!-- Toast container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="/js/app.js"></script>
+    <script src="/js/onboarding.js"></script>
+    <script src="/js/dashboard.js"></script>
+    <script src="/js/meals.js"></script>
+    <script src="/js/chat.js"></script>
+    <script src="/js/history.js"></script>
+    <script src="/js/pwa.js"></script>
+</body>
+</html>
