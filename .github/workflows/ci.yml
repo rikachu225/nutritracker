@@ -48,7 +48,7 @@ jobs:
           import re, sys, pathlib
           issues = []
           for f in pathlib.Path('backend').glob('*.py'):
-              text = f.read_text()
+              text = f.read_text(encoding='utf-8')
               # Check for hardcoded API keys (not template/demo ones)
               for m in re.finditer(r'[\x27\x22](?:sk-|AIza|ghp_|AKIA)[A-Za-z0-9]{20,}[\x27\x22]', text):
                   issues.append(f'{f}:{m.start()}: possible hardcoded key')
