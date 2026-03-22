@@ -95,7 +95,7 @@ The server starts on **http://localhost:8888**. Open this URL on your phone (sam
 
 1. **Clone the repo**
    ```bash
-   git clone https://github.com/yourusername/nutritracker.git
+   git clone https://github.com/rikachu225/nutritracker.git
    cd nutritracker
    ```
 
