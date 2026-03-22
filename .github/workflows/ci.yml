@@ -16,10 +16,10 @@ jobs:
       fail-fast: false
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -50,7 +50,7 @@ jobs:
           for f in pathlib.Path('backend').glob('*.py'):
               text = f.read_text()
               # Check for hardcoded API keys (not template/demo ones)
-              for m in re.finditer(r'['\"](?:sk-|AIza|ghp_|AKIA)[A-Za-z0-9]{20,}['\"]', text):
+              for m in re.finditer(r'[\x27\x22](?:sk-|AIza|ghp_|AKIA)[A-Za-z0-9]{20,}[\x27\x22]', text):
                   issues.append(f'{f}:{m.start()}: possible hardcoded key')
           if issues:
               print('SECURITY: Found possible hardcoded secrets:')
@@ -62,10 +62,10 @@ jobs:
   security-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
