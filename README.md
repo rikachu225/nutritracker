@@ -187,7 +187,9 @@ Enter your key during onboarding (Step 6) or update it anytime in Settings.
 
 ## License
 
-MIT — free to use, modify, and share. No strings attached.
+**AGPL-3.0** — Free to use, modify, and self-host. If you deploy a modified version as a service, you must open-source your changes. You may not sell this software or offer it as a paid service.
+
+See [LICENSE](LICENSE) for full terms.
 
 ---
 
